@@ -5,6 +5,7 @@
 package monmq
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/jroimartin/rpcmq"
 )
+
+const sep = '|'
 
 var (
 	Timeout = 5 * time.Second
@@ -72,8 +75,8 @@ func (s *Supervisor) getResponses() {
 		case <-s.done:
 			return
 		case r := <-results:
-			if err := s.handleReponse(r); err != nil {
-				log.Println("handleReponse:", err)
+			if err := s.route(r); err != nil {
+				log.Println("route:", err)
 			}
 		case <-time.After(Timeout):
 			s.status = []Status{}
@@ -81,12 +84,34 @@ func (s *Supervisor) getResponses() {
 	}
 }
 
-func (s *Supervisor) handleReponse(r rpcmq.Result) error {
+func (s *Supervisor) route(r rpcmq.Result) error {
 	if r.Err != "" {
 		return errors.New(r.Err)
 	}
+	sepIdx := bytes.IndexByte(r.Data, sep)
+	if sepIdx < 0 {
+		return errors.New("malformed response")
+	}
+	cmd := string(r.Data[:sepIdx])
+	data := r.Data[sepIdx+1:]
+	switch cmd {
+	case "getStatus":
+		return s.handleGetStatus(data)
+	case "softShutdown":
+		log.Println("softShutdown:", string(data))
+	case "hardShutdown":
+		log.Println("hardShutdown:", string(data))
+	case "kill":
+		log.Println("kill:", string(data))
+	default:
+		return errors.New("malformed response")
+	}
+	return nil
+}
+
+func (s *Supervisor) handleGetStatus(data []byte) error {
 	status := Status{}
-	if err := json.Unmarshal(r.Data, &status); err != nil {
+	if err := json.Unmarshal(data, &status); err != nil {
 		return err
 	}
 	status.LastBeat = time.Now()
@@ -111,17 +136,23 @@ func (s *Supervisor) Status() []Status {
 	return s.status
 }
 
-func (s *Supervisor) SoftShutdown(worker string) error {
-	// TODO
+func (s *Supervisor) SoftShutdown(name string) error {
+	if _, err := s.c.Call("softShutdown", []byte(name), 0); err != nil {
+		log.Println("softShutdown:", err)
+	}
 	return nil
 }
 
-func (s *Supervisor) HardShutdown(worker string) error {
-	// TODO
+func (s *Supervisor) HardShutdown(name string) error {
+	if _, err := s.c.Call("hardShutdown", []byte(name), 0); err != nil {
+		log.Println("hardShutdown:", err)
+	}
 	return nil
 }
 
-func (s *Supervisor) Kill(task string) error {
-	// TODO
+func (s *Supervisor) Kill(id string) error {
+	if _, err := s.c.Call("kill", []byte(id), 0); err != nil {
+		log.Println("kill:", err)
+	}
 	return nil
 }
