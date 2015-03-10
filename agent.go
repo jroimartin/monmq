@@ -90,7 +90,7 @@ func (a *Agent) softShutdown(id string, data []byte) ([]byte, error) {
 	if a.SoftShutdown == nil {
 		return nil, errors.New("SoftShutdown not implemented")
 	}
-	b := []byte(fmt.Sprintf("softShutdown%c%s", sep, a.status.Name))
+	b := []byte(fmt.Sprintf("softShutdown%c%s", sep, name))
 	err := a.SoftShutdown()
 	return b, err
 }
@@ -103,7 +103,7 @@ func (a *Agent) hardShutdown(id string, data []byte) ([]byte, error) {
 	if a.HardShutdown == nil {
 		return nil, errors.New("HardShutdown not implemented")
 	}
-	b := []byte(fmt.Sprintf("hardShutdown%c%s", sep, a.status.Name))
+	b := []byte(fmt.Sprintf("hardShutdown%c%s", sep, name))
 	err := a.HardShutdown()
 	return b, err
 }
