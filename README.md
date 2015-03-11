@@ -36,6 +36,8 @@ func main() {
 **Agent**
 
 ```go
+var a *monmq.Agent
+
 func main() {
 	...
 	a = monmq.NewAgent("amqp://amqp_broker:5672", "mon-exchange", name)
