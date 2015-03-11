@@ -2,8 +2,10 @@
 
 ## Introduction
 
-The package monmq makes easier to control distributed systems based on rpcmq.
-It allows to control the status of workers or specific tasks, kill them, etc.
+The Package monmq makes easier to control distributed systems based on rpcmq.
+
+It allows to get the status of the deployed workers and their tasks, as well as
+control and kill them.
 
 ## Installation
 
