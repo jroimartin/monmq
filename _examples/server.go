@@ -40,7 +40,7 @@ func main() {
 	}
 	defer s.Shutdown()
 
-	<-time.After(1 * time.Minute)
+	time.Sleep(5 * time.Minute)
 }
 
 func toUpper(id string, data []byte) ([]byte, error) {
@@ -48,6 +48,6 @@ func toUpper(id string, data []byte) ([]byte, error) {
 	defer a.RemoveTask(id)
 
 	log.Printf("Received (%v): toUpper(%v)\n", id, string(data))
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 	return []byte(strings.ToUpper(string(data))), nil
 }

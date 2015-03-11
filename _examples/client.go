@@ -27,7 +27,7 @@ func main() {
 				log.Println("Call:", err)
 			}
 			log.Printf("Sent: toUpper(%v) (%v)\n", string(data), uuid)
-			<-time.After(500 * time.Millisecond)
+			time.Sleep(200 * time.Millisecond)
 		}
 	}()
 
@@ -41,5 +41,5 @@ func main() {
 		}
 	}()
 
-	<-time.After(1 * time.Minute)
+	time.Sleep(5 * time.Minute)
 }
