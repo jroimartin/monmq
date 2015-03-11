@@ -14,25 +14,25 @@ import (
 )
 
 // An Agent is responsible for sending its status when a supervisor on the same
-// exchange asks for it. It also executes the control operation requested by
+// exchange asks for it. It also executes the control operations requested by
 // the supervisors.
 type Agent struct {
 	s      *rpcmq.Server
 	status Status
 
 	// TLSConfig allows to configure the TLS parameters used to connect to
-	// the broker via amqps
+	// the broker via amqps.
 	TLSConfig *tls.Config
 
 	// SoftShutdownFunc will be called when a supervisor invokes the
-	// command SoftShutdown
+	// command SoftShutdown.
 	SoftShutdownFunc func() error
 
 	// HardShutdownFunc will be called when a supervisor invokes the
-	// command HardShutdown
+	// command HardShutdown.
 	HardShutdownFunc func() error
 
-	// KillFunc will be called when a supervisor invokes the command Kill
+	// KillFunc will be called when a supervisor invokes the command Kill.
 	KillFunc func(id string) error
 }
 

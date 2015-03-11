@@ -27,14 +27,14 @@ var (
 )
 
 // A Supervisor is responsible for requesting information from the deployed
-// agents and sending them control commands.
+// agents and sending control commands to these agents.
 type Supervisor struct {
 	c      *rpcmq.Client
 	status []Status
 	done   chan bool
 
 	// TLSConfig allows to configure the TLS parameters used to connect to
-	// the broker via amqps
+	// the broker via amqps.
 	TLSConfig *tls.Config
 }
 
