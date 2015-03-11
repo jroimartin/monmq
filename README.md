@@ -7,13 +7,16 @@ The Package monmq makes easier to control distributed systems based on rpcmq.
 It allows to get the status of the deployed workers and their tasks, as well as
 control and kill them.
 
-## Usage
+## Getting started
 
-The following snippets show a minimal example on how to use monmq within a distributed system.
+The following snippets show how to use monmq within a very simple distributed
+system.
 
 **Supervisor**
 
 ```go
+package main
+
 import (
 	"log"
 
@@ -42,6 +45,8 @@ func main() {
 **Agent**
 
 ```go
+package main
+
 import (
 	"log"
 
