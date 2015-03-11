@@ -11,7 +11,7 @@ control and kill them.
 
 The following snippets show a minimal example on how to use monmq within a distributed system.
 
-**supervisor**
+**Supervisor**
 
 ```go
 func main() {
@@ -33,7 +33,7 @@ func main() {
 }
 ```
 
-**agent**
+**Agent**
 
 ```go
 func main() {
