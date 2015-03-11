@@ -14,6 +14,12 @@ The following snippets show a minimal example on how to use monmq within a distr
 **Supervisor**
 
 ```go
+import (
+	"log"
+
+	"github.com/jroimartin/monmq"
+)
+
 func main() {
 	...
 	s := monmq.NewSupervisor("amqp://amqp_broker:5672", "mon-exchange")
@@ -36,6 +42,12 @@ func main() {
 **Agent**
 
 ```go
+import (
+	"log"
+
+	"github.com/jroimartin/monmq"
+)
+
 var a *monmq.Agent
 
 func main() {
