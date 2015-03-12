@@ -24,11 +24,20 @@ func main() {
 	}
 	name := os.Args[1]
 
+	softShutdown := make(chan bool)
+
 	a = monmq.NewAgent("amqp://amqp_broker:5672", "mon-exchange", name)
+	a.HardShutdownFunc = func() error {
+		softShutdown <- false
+		return nil
+	}
+	a.SoftShutdownFunc = func() error {
+		softShutdown <- true
+		return nil
+	}
 	if err := a.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
 	}
-	defer a.Shutdown()
 
 	s := rpcmq.NewServer("amqp://amqp_broker:5672", "rcp-queue",
 		"rpc-exchange", "direct")
@@ -38,9 +47,15 @@ func main() {
 	if err := s.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
 	}
-	defer s.Shutdown()
 
-	time.Sleep(5 * time.Minute)
+	soft := <-softShutdown
+	if soft {
+		log.Println("Soft shutdown...")
+		s.Shutdown()
+		a.Shutdown()
+	} else {
+		log.Println("Hard shutdown...")
+	}
 }
 
 func toUpper(id string, data []byte) ([]byte, error) {

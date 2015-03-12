@@ -48,6 +48,26 @@ func cursorUp(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
+func shutdown(g *gocui.Gui, v *gocui.View, hard bool) error {
+	vside, err := g.View("side")
+	if err != nil {
+		return err
+	}
+	_, cy := vside.Cursor()
+	selAgent, err := vside.Line(cy)
+	if err != nil {
+		selAgent = ""
+	}
+	if selAgent != "" {
+		if hard {
+			supervisor.HardShutdown(selAgent)
+		} else {
+			supervisor.SoftShutdown(selAgent)
+		}
+	}
+	return nil
+}
+
 func quit(g *gocui.Gui, v *gocui.View) error {
 	return gocui.Quit
 }
@@ -57,6 +77,16 @@ func keybindings(g *gocui.Gui) error {
 		return err
 	}
 	if err := g.SetKeybinding("side", gocui.KeyArrowUp, gocui.ModNone, cursorUp); err != nil {
+		return err
+	}
+	if err := g.SetKeybinding("side", 'k', gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+		return shutdown(g, v, false)
+	}); err != nil {
+		return err
+	}
+	if err := g.SetKeybinding("side", 'K', gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+		return shutdown(g, v, true)
+	}); err != nil {
 		return err
 	}
 	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
@@ -93,8 +123,7 @@ func layout(g *gocui.Gui) error {
 			return err
 		}
 	}
-	updateData(g)
-	return nil
+	return updateData(g)
 }
 
 func main() {
@@ -133,17 +162,17 @@ func main() {
 	}
 }
 
-func updateData(g *gocui.Gui) {
+func updateData(g *gocui.Gui) error {
 	mu.Lock()
 	defer mu.Unlock()
 
 	vside, err := g.View("side")
 	if err != nil {
-		log.Fatalln(err)
+		return err
 	}
 	vmain, err := g.View("main")
 	if err != nil {
-		log.Fatalln(err)
+		return err
 	}
 	vside.Clear()
 	vmain.Clear()
@@ -174,4 +203,6 @@ func updateData(g *gocui.Gui) {
 			fmt.Fprintf(vmain, "%v. %v\n", i, t)
 		}
 	}
+
+	return nil
 }

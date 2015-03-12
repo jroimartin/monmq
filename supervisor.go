@@ -17,15 +17,6 @@ import (
 
 const sep = '|'
 
-var (
-	// Timeout allows to configure the amount of time that must pass before
-	// considering an agent as offline.
-	Timeout = 5 * time.Second
-
-	// Beat allows to establish the time between heartbeats.
-	Beat = 500 * time.Millisecond
-)
-
 // A Supervisor is responsible for requesting information from the deployed
 // agents and sending control commands to these agents.
 type Supervisor struct {
@@ -36,6 +27,17 @@ type Supervisor struct {
 	// TLSConfig allows to configure the TLS parameters used to connect to
 	// the broker via amqps.
 	TLSConfig *tls.Config
+
+	// Timeout allows to configure the amount of time that must pass before
+	// considering an agent as offline.
+	Timeout time.Duration
+
+	// Beat allows to establish the time between heartbeats.
+	Beat time.Duration
+
+	// Log is the logger used to register warnings and info messages. If it
+	// is nil, no messages will be logged.
+	Log *log.Logger
 }
 
 // Status represents the the information obtained from agents.
@@ -50,9 +52,11 @@ type Status struct {
 // that will be created.
 func NewSupervisor(uri, exchange string) *Supervisor {
 	s := &Supervisor{
-		status: []Status{},
-		c:      rpcmq.NewClient(uri, "", exchange, "fanout"),
-		done:   make(chan bool),
+		status:  []Status{},
+		c:       rpcmq.NewClient(uri, "", exchange, "fanout"),
+		done:    make(chan bool),
+		Timeout: 5 * time.Second,
+		Beat:    500 * time.Millisecond,
 	}
 	return s
 }
@@ -74,9 +78,9 @@ func (s *Supervisor) sendHeartbeat() {
 		select {
 		case <-s.done:
 			return
-		case <-time.After(Beat):
-			if _, err := s.c.Call("getStatus", nil, Timeout); err != nil {
-				log.Println("getStatus:", err)
+		case <-time.After(s.Beat):
+			if _, err := s.c.Call("getStatus", nil, s.Timeout); err != nil {
+				s.logf("getStatus: %v", err)
 			}
 		}
 	}
@@ -90,9 +94,9 @@ func (s *Supervisor) getResponses() {
 			return
 		case r := <-results:
 			if err := s.route(r); err != nil {
-				log.Println("route:", err)
+				s.logf("route: %v", err)
 			}
-		case <-time.After(Timeout):
+		case <-time.After(s.Timeout):
 			s.status = []Status{}
 		}
 	}
@@ -111,11 +115,11 @@ func (s *Supervisor) route(r rpcmq.Result) error {
 	case "getStatus":
 		return s.handleGetStatus(data)
 	case "softShutdown":
-		log.Println("softShutdown:", string(data))
+		s.logf("softShutdown: %v", string(data))
 	case "hardShutdown":
-		log.Println("hardShutdown:", string(data))
+		s.logf("hardShutdown: %v", string(data))
 	case "kill":
-		log.Println("kill:", string(data))
+		s.logf("kill: %v", string(data))
 	default:
 		return errors.New("malformed response")
 	}
@@ -130,7 +134,7 @@ func (s *Supervisor) handleGetStatus(data []byte) error {
 	status.LastBeat = time.Now()
 	live := []Status{status}
 	for _, st := range s.status {
-		if st.Name == status.Name || time.Since(st.LastBeat) > Timeout {
+		if st.Name == status.Name || time.Since(st.LastBeat) > s.Timeout {
 			continue
 		}
 		live = append(live, st)
@@ -156,7 +160,7 @@ func (s *Supervisor) Status() []Status {
 // SoftShutdown invokes a soft shutdown on the agent with the specified name.
 func (s *Supervisor) SoftShutdown(name string) error {
 	if _, err := s.c.Call("softShutdown", []byte(name), 0); err != nil {
-		log.Println("softShutdown:", err)
+		return err
 	}
 	return nil
 }
@@ -164,7 +168,7 @@ func (s *Supervisor) SoftShutdown(name string) error {
 // HardShutdown invokes a hard shutdown on the agent with the specified name.
 func (s *Supervisor) HardShutdown(name string) error {
 	if _, err := s.c.Call("hardShutdown", []byte(name), 0); err != nil {
-		log.Println("hardShutdown:", err)
+		return err
 	}
 	return nil
 }
@@ -172,7 +176,14 @@ func (s *Supervisor) HardShutdown(name string) error {
 // Kill kills the task with the id passed as parameter on the corresponding agent.
 func (s *Supervisor) Kill(id string) error {
 	if _, err := s.c.Call("kill", []byte(id), 0); err != nil {
-		log.Println("kill:", err)
+		return err
 	}
 	return nil
+}
+
+func (s *Supervisor) logf(format string, args ...interface{}) {
+	if s.Log == nil {
+		return
+	}
+	s.Log.Printf(format, args...)
 }
