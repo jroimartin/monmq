@@ -148,10 +148,10 @@ func updateData(g *gocui.Gui) {
 	vside.Clear()
 	vmain.Clear()
 
-	agentStatus := map[string]monmq.Status{}
+	status := map[string]monmq.Status{}
 	names := []string{}
 	for _, st := range supervisor.Status() {
-		agentStatus[st.Name] = st
+		status[st.Name] = st
 		names = append(names, st.Name)
 	}
 	sort.Strings(names)
@@ -161,20 +161,17 @@ func updateData(g *gocui.Gui) {
 	}
 
 	_, cy := vside.Cursor()
-	selectedAgent, err := vside.Line(cy)
+	selAgent, err := vside.Line(cy)
 	if err != nil {
-		selectedAgent = ""
+		selAgent = ""
 	}
 
-	if selectedAgent != "" {
-		agent, ok := agentStatus[selectedAgent]
-		if ok {
-			fmt.Fprintf(vmain, "Agent name: %v\n", agent.Name)
-			fmt.Fprintf(vmain, "Last hearbeat: %v\n", time.Since(agent.LastBeat))
-			fmt.Fprintf(vmain, "Current tasks:\n")
-			for i, t := range agent.Tasks {
-				fmt.Fprintf(vmain, "%v. %v\n", i, t)
-			}
+	if agent, ok := status[selAgent]; ok {
+		fmt.Fprintf(vmain, "Agent name: %v\n", agent.Name)
+		fmt.Fprintf(vmain, "Last heartbeat: %v\n", time.Since(agent.LastBeat))
+		fmt.Fprintf(vmain, "Current tasks:\n")
+		for i, t := range agent.Tasks {
+			fmt.Fprintf(vmain, "%v. %v\n", i, t)
 		}
 	}
 }
