@@ -24,16 +24,24 @@ func main() {
 	}
 	name := os.Args[1]
 
-	softShutdown := make(chan bool)
+	cmds := make(chan monmq.Command)
 
 	a = monmq.NewAgent("amqp://amqp_broker:5672", "mon-exchange", name)
-	a.HardShutdownFunc = func() error {
-		softShutdown <- false
-		return nil
+	a.HardShutdownFunc = func(data []byte) ([]byte, error) {
+		cmds <- monmq.HardShutdown
+		return nil, nil
 	}
-	a.SoftShutdownFunc = func() error {
-		softShutdown <- true
-		return nil
+	a.SoftShutdownFunc = func(data []byte) ([]byte, error) {
+		cmds <- monmq.SoftShutdown
+		return nil, nil
+	}
+	a.ResumeFunc = func(data []byte) ([]byte, error) {
+		cmds <- monmq.Resume
+		return nil, nil
+	}
+	a.PauseFunc = func(data []byte) ([]byte, error) {
+		cmds <- monmq.Pause
+		return nil, nil
 	}
 	if err := a.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
@@ -48,13 +56,41 @@ func main() {
 		log.Fatalf("Init: %v", err)
 	}
 
-	soft := <-softShutdown
-	if soft {
-		log.Println("Soft shutdown...")
-		s.Shutdown()
-		a.Shutdown()
-	} else {
-		log.Println("Hard shutdown...")
+	paused := false
+loop:
+	for {
+		switch <-cmds {
+		case monmq.HardShutdown:
+			log.Println("Hard shutdown...")
+			break loop
+		case monmq.SoftShutdown:
+			log.Println("Soft shutdown...")
+			if err := s.Shutdown(); err != nil {
+				log.Fatalln("Server shutdown:", err)
+			}
+			if err := a.Shutdown(); err != nil {
+				log.Fatalln("Agent shutdown:", err)
+			}
+			break loop
+		case monmq.Pause:
+			if paused {
+				continue
+			}
+			log.Println("Pause...")
+			if err := s.Shutdown(); err != nil {
+				log.Fatalln("Server shutdown:", err)
+			}
+			paused = true
+		case monmq.Resume:
+			if !paused {
+				continue
+			}
+			log.Println("Resume...")
+			if err := s.Init(); err != nil {
+				log.Fatalln("Server init:", err)
+			}
+			paused = false
+		}
 	}
 }
 

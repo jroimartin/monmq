@@ -48,7 +48,7 @@ func cursorUp(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
-func shutdown(g *gocui.Gui, v *gocui.View, hard bool) error {
+func invoke(g *gocui.Gui, v *gocui.View, cmd monmq.Command) error {
 	vside, err := g.View("side")
 	if err != nil {
 		return err
@@ -59,11 +59,7 @@ func shutdown(g *gocui.Gui, v *gocui.View, hard bool) error {
 		selAgent = ""
 	}
 	if selAgent != "" {
-		if hard {
-			supervisor.HardShutdown(selAgent)
-		} else {
-			supervisor.SoftShutdown(selAgent)
-		}
+		return supervisor.Invoke(cmd, selAgent)
 	}
 	return nil
 }
@@ -80,12 +76,22 @@ func keybindings(g *gocui.Gui) error {
 		return err
 	}
 	if err := g.SetKeybinding("side", 'k', gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
-		return shutdown(g, v, false)
+		return invoke(g, v, monmq.SoftShutdown)
 	}); err != nil {
 		return err
 	}
 	if err := g.SetKeybinding("side", 'K', gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
-		return shutdown(g, v, true)
+		return invoke(g, v, monmq.HardShutdown)
+	}); err != nil {
+		return err
+	}
+	if err := g.SetKeybinding("side", 'p', gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+		return invoke(g, v, monmq.Pause)
+	}); err != nil {
+		return err
+	}
+	if err := g.SetKeybinding("side", 'r', gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+		return invoke(g, v, monmq.Resume)
 	}); err != nil {
 		return err
 	}
@@ -197,6 +203,7 @@ func updateData(g *gocui.Gui) error {
 
 	if agent, ok := status[selAgent]; ok {
 		fmt.Fprintf(vmain, "Agent name: %v\n", agent.Name)
+		fmt.Fprintf(vmain, "Running: %v\n", agent.Running)
 		fmt.Fprintf(vmain, "Last heartbeat: %v\n", time.Since(agent.LastBeat))
 		fmt.Fprintf(vmain, "Current tasks:\n")
 		for i, t := range agent.Tasks {

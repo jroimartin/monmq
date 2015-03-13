@@ -5,10 +5,10 @@
 package monmq
 
 import (
-	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -16,6 +16,18 @@ import (
 )
 
 const sep = '|'
+
+// Commands can be remotely invoked in workers via Supervisor.Invoke
+type Command byte
+
+const (
+	GetStatus Command = iota
+	SoftShutdown
+	HardShutdown
+	Pause
+	Resume
+	KillTask
+)
 
 // A Supervisor is responsible for requesting information from the deployed
 // agents and sending control commands to these agents.
@@ -43,6 +55,7 @@ type Supervisor struct {
 // Status represents the the information obtained from agents.
 type Status struct {
 	Name     string
+	Running  bool
 	Tasks    []string
 	LastBeat time.Time // filled by the supervisor
 }
@@ -79,8 +92,9 @@ func (s *Supervisor) sendHeartbeat() {
 		case <-s.done:
 			return
 		case <-time.After(s.Beat):
-			if _, err := s.c.Call("getStatus", nil, s.Timeout); err != nil {
-				s.logf("getStatus: %v", err)
+			data := []byte{byte(GetStatus)}
+			if _, err := s.c.Call("invoke", data, s.Timeout); err != nil {
+				s.logf("GetStatus: %v", err)
 			}
 		}
 	}
@@ -106,24 +120,30 @@ func (s *Supervisor) route(r rpcmq.Result) error {
 	if r.Err != "" {
 		return errors.New(r.Err)
 	}
-	sdata := bytes.SplitN(r.Data, []byte{sep}, 2)
-	if len(sdata) != 2 {
+	if len(r.Data) < 1 {
 		return errors.New("malformed response")
 	}
-	cmd, data := string(sdata[0]), sdata[1]
+
+	var err error
+	cmd, data := Command(r.Data[0]), r.Data[1:]
 	switch cmd {
-	case "getStatus":
-		return s.handleGetStatus(data)
-	case "softShutdown":
-		s.logf("softShutdown: %v", string(data))
-	case "hardShutdown":
-		s.logf("hardShutdown: %v", string(data))
-	case "kill":
-		s.logf("kill: %v", string(data))
+	case GetStatus:
+		s.logf("GetStatus response")
+		err = s.handleGetStatus(data)
+	case SoftShutdown:
+		s.logf("SoftShutdown response")
+	case HardShutdown:
+		s.logf("HardShutdown response")
+	case Pause:
+		s.logf("Pause response")
+	case Resume:
+		s.logf("Resume response")
+	case KillTask:
+		s.logf("KillTask response")
 	default:
-		return errors.New("malformed response")
+		err = errors.New("malformed response")
 	}
-	return nil
+	return err
 }
 
 func (s *Supervisor) handleGetStatus(data []byte) error {
@@ -157,25 +177,12 @@ func (s *Supervisor) Status() []Status {
 	return s.status
 }
 
-// SoftShutdown invokes a soft shutdown on the agent with the specified name.
-func (s *Supervisor) SoftShutdown(name string) error {
-	if _, err := s.c.Call("softShutdown", []byte(name), 0); err != nil {
-		return err
-	}
-	return nil
-}
-
-// HardShutdown invokes a hard shutdown on the agent with the specified name.
-func (s *Supervisor) HardShutdown(name string) error {
-	if _, err := s.c.Call("hardShutdown", []byte(name), 0); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Kill kills the task with the id passed as parameter on the corresponding agent.
-func (s *Supervisor) Kill(id string) error {
-	if _, err := s.c.Call("kill", []byte(id), 0); err != nil {
+// Invoke invokes the given command on the corresponding worker or task. The
+// target is selected by name in the case of the workers or by uuid in the case
+// of the tasks.
+func (s *Supervisor) Invoke(cmd Command, target string) error {
+	data := fmt.Sprintf("%c%s", cmd, target)
+	if _, err := s.c.Call("invoke", []byte(data), 0); err != nil {
 		return err
 	}
 	return nil

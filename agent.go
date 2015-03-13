@@ -13,6 +13,10 @@ import (
 	"github.com/jroimartin/rpcmq"
 )
 
+// The type CommandFunction declares the signature of the methods that can be
+// registered by an Agent. The data parameter contains auxiliary data.
+type CommandFunction func(data []byte) ([]byte, error)
+
 // An Agent is responsible for sending its status when a supervisor on the same
 // exchange asks for it. It also executes the control operations requested by
 // the supervisors.
@@ -26,14 +30,23 @@ type Agent struct {
 
 	// SoftShutdownFunc will be called when a supervisor invokes the
 	// command SoftShutdown.
-	SoftShutdownFunc func() error
+	SoftShutdownFunc CommandFunction
 
 	// HardShutdownFunc will be called when a supervisor invokes the
 	// command HardShutdown.
-	HardShutdownFunc func() error
+	HardShutdownFunc CommandFunction
 
-	// KillFunc will be called when a supervisor invokes the command Kill.
-	KillFunc func(id string) error
+	// PauseFunc will be called when a supervisor invokes the command
+	// Pause.
+	PauseFunc CommandFunction
+
+	// ResumeFunc will be called when a supervisor invokes the command
+	// Resume.
+	ResumeFunc CommandFunction
+
+	// KillTaskFunc will be called when a supervisor invokes the command
+	// KillTask.
+	KillTaskFunc CommandFunction
 }
 
 // NewAgent returns a reference to an Agent object. The paremeter uri is the
@@ -50,21 +63,13 @@ func NewAgent(uri, exchange, name string) *Agent {
 // broker, creating a channel and the exchange that will be used under the hood.
 func (a *Agent) Init() error {
 	a.s.TLSConfig = a.TLSConfig
-	if err := a.s.Register("getStatus", a.getStatus); err != nil {
-		return err
-	}
-	if err := a.s.Register("softShutdown", a.softShutdown); err != nil {
-		return err
-	}
-	if err := a.s.Register("hardShutdown", a.hardShutdown); err != nil {
-		return err
-	}
-	if err := a.s.Register("kill", a.kill); err != nil {
+	if err := a.s.Register("invoke", a.invoke); err != nil {
 		return err
 	}
 	if err := a.s.Init(); err != nil {
 		return err
 	}
+	a.status.Running = true
 	return nil
 }
 
@@ -96,51 +101,49 @@ func (a *Agent) RemoveTask(id string) error {
 	return nil
 }
 
-func (a *Agent) getStatus(id string, data []byte) ([]byte, error) {
-	b, err := json.Marshal(a.status)
+func (a *Agent) invoke(id string, data []byte) ([]byte, error) {
+	var (
+		f       CommandFunction
+		running bool
+	)
+	cmd, aux := Command(data[0]), data[1:]
+	switch {
+	case cmd == GetStatus:
+		f = a.getStatus
+		running = a.status.Running
+	case a.status.Name == string(aux) && cmd == SoftShutdown:
+		f = a.SoftShutdownFunc
+		running = false
+	case a.status.Name == string(aux) && cmd == HardShutdown:
+		f = a.HardShutdownFunc
+		running = false
+	case a.status.Name == string(aux) && cmd == Pause:
+		f = a.PauseFunc
+		running = false
+	case a.status.Name == string(aux) && cmd == Resume:
+		f = a.ResumeFunc
+		running = true
+	case a.ownsTask(string(aux)) && cmd == KillTask:
+		f = a.KillTaskFunc
+		running = a.status.Running
+	default:
+		running = a.status.Running
+	}
+	if f == nil {
+		// The command is not for this agent
+		return nil, nil
+	}
+	b, err := f(data)
 	if err != nil {
 		return nil, err
 	}
-	return []byte(fmt.Sprintf("getStatus%c%s", sep, b)), nil
+	a.status.Running = running
+	out := fmt.Sprintf("%c%s", cmd, b)
+	return []byte(out), nil
 }
 
-func (a *Agent) softShutdown(id string, data []byte) ([]byte, error) {
-	name := string(data)
-	if name != a.status.Name {
-		return nil, nil
-	}
-	if a.SoftShutdownFunc == nil {
-		return nil, errors.New("SoftShutdown not implemented")
-	}
-	b := []byte(fmt.Sprintf("softShutdown%c%s", sep, name))
-	err := a.SoftShutdownFunc()
-	return b, err
-}
-
-func (a *Agent) hardShutdown(id string, data []byte) ([]byte, error) {
-	name := string(data)
-	if name != a.status.Name {
-		return nil, nil
-	}
-	if a.HardShutdownFunc == nil {
-		return nil, errors.New("HardShutdown not implemented")
-	}
-	b := []byte(fmt.Sprintf("hardShutdown%c%s", sep, name))
-	err := a.HardShutdownFunc()
-	return b, err
-}
-
-func (a *Agent) kill(id string, data []byte) ([]byte, error) {
-	taskID := string(data)
-	if !a.ownsTask(taskID) {
-		return nil, nil
-	}
-	if a.KillFunc == nil {
-		return nil, errors.New("Kill not implemented")
-	}
-	b := []byte(fmt.Sprintf("kill%c%s", sep, taskID))
-	err := a.KillFunc(taskID)
-	return b, err
+func (a *Agent) getStatus(data []byte) ([]byte, error) {
+	return json.Marshal(a.status)
 }
 
 func (a *Agent) ownsTask(id string) bool {
