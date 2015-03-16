@@ -102,15 +102,12 @@ func (a *Agent) RemoveTask(id string) error {
 }
 
 func (a *Agent) invoke(id string, data []byte) ([]byte, error) {
-	var (
-		f       CommandFunction
-		running bool
-	)
+	var f CommandFunction
+	running := a.status.Running
 	cmd, aux := Command(data[0]), data[1:]
 	switch {
 	case cmd == GetStatus:
 		f = a.getStatus
-		running = a.status.Running
 	case a.status.Name == string(aux) && cmd == SoftShutdown:
 		f = a.SoftShutdownFunc
 		running = false
@@ -125,9 +122,6 @@ func (a *Agent) invoke(id string, data []byte) ([]byte, error) {
 		running = true
 	case a.ownsTask(string(aux)) && cmd == KillTask:
 		f = a.KillTaskFunc
-		running = a.status.Running
-	default:
-		running = a.status.Running
 	}
 	if f == nil {
 		// The command is not for this agent
