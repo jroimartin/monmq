@@ -49,6 +49,9 @@ func cursorUp(g *gocui.Gui, v *gocui.View) error {
 }
 
 func invoke(g *gocui.Gui, v *gocui.View, cmd monmq.Command) error {
+	mu.Lock()
+	defer mu.Unlock()
+
 	vside, err := g.View("side")
 	if err != nil {
 		return err
