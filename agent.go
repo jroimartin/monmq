@@ -76,8 +76,8 @@ func (a *Agent) Init() error {
 // Shutdown shuts down the agent gracefully. Using this method will ensure that
 // all requests sent by the supervisors to the agent will be received by the
 // latter.
-func (a *Agent) Shutdown() error {
-	return a.s.Shutdown()
+func (a *Agent) Shutdown() {
+	a.s.Shutdown()
 }
 
 // RegisterTask adds a task to the list of tasks handled by the agent.

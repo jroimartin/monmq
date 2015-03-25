@@ -65,21 +65,15 @@ loop:
 			break loop
 		case monmq.SoftShutdown:
 			log.Println("Soft shutdown...")
-			if err := s.Shutdown(); err != nil {
-				log.Fatalln("Server shutdown:", err)
-			}
-			if err := a.Shutdown(); err != nil {
-				log.Fatalln("Agent shutdown:", err)
-			}
+			s.Shutdown()
+			a.Shutdown()
 			break loop
 		case monmq.Pause:
 			if paused {
 				continue
 			}
 			log.Println("Pause...")
-			if err := s.Shutdown(); err != nil {
-				log.Fatalln("Server shutdown:", err)
-			}
+			s.Shutdown()
 			paused = true
 		case monmq.Resume:
 			if !paused {

@@ -61,12 +61,13 @@ type Status struct {
 }
 
 // NewSupervisor returns a reference to a Supervisor object. The paremeter uri
-// is the network address of the broker and exchange is the name of exchange
-// that will be created.
-func NewSupervisor(uri, exchange string) *Supervisor {
+// is the network address of the broker, repliesQueue is the queue name used
+// for receiving replies from agents and exchange is the name of exchange that
+// will be created.
+func NewSupervisor(uri, repliesQueue, exchange string) *Supervisor {
 	s := &Supervisor{
 		status:  []Status{},
-		c:       rpcmq.NewClient(uri, "", exchange, "fanout"),
+		c:       rpcmq.NewClient(uri, "", repliesQueue, exchange, "fanout"),
 		done:    make(chan bool),
 		Timeout: 5 * time.Second,
 		Beat:    500 * time.Millisecond,
@@ -166,10 +167,10 @@ func (s *Supervisor) handleGetStatus(data []byte) error {
 // Shutdown shuts down the supervisor gracefully. Using this method will ensure
 // that all replies sent by the agents to the supervisor will be received by
 // the latter.
-func (s *Supervisor) Shutdown() error {
+func (s *Supervisor) Shutdown() {
 	s.done <- true // Heartbeats
 	s.done <- true // Responses
-	return s.c.Shutdown()
+	s.c.Shutdown()
 }
 
 // Status returns the status of all the online agents.

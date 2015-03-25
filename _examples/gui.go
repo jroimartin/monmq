@@ -149,7 +149,8 @@ func main() {
 	g.SelFgColor = gocui.ColorBlack
 	g.ShowCursor = true
 
-	supervisor = monmq.NewSupervisor("amqp://amqp_broker:5672", "mon-exchange")
+	supervisor = monmq.NewSupervisor("amqp://amqp_broker:5672",
+		"mon-replies", "mon-exchange")
 	if err := supervisor.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
 	}

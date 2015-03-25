@@ -13,7 +13,8 @@ import (
 )
 
 func main() {
-	s := monmq.NewSupervisor("amqp://amqp_broker:5672", "mon-exchange")
+	s := monmq.NewSupervisor("amqp://amqp_broker:5672",
+		"mon-replies", "mon-exchange")
 	if err := s.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
 	}
