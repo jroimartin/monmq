@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/jroimartin/rpcmq"
@@ -44,12 +43,8 @@ type Supervisor struct {
 	// considering an agent as offline.
 	Timeout time.Duration
 
-	// Beat allows to establish the time between heartbeats.
+	// Beat allows to establish the time between heartbeats. Default: 500ms
 	Beat time.Duration
-
-	// Log is the logger used to register warnings and info messages. If it
-	// is nil, no messages will be logged.
-	Log *log.Logger
 }
 
 // Status represents the the information obtained from agents.
@@ -57,6 +52,7 @@ type Status struct {
 	Name     string
 	Running  bool
 	Tasks    []string
+	Info     SystemInfo
 	LastBeat time.Time // filled by the supervisor
 }
 
@@ -95,7 +91,7 @@ func (s *Supervisor) sendHeartbeat() {
 		case <-time.After(s.Beat):
 			data := []byte{byte(GetStatus)}
 			if _, err := s.c.Call("invoke", data, s.Timeout); err != nil {
-				s.logf("GetStatus: %v", err)
+				logf("GetStatus: %v", err)
 			}
 		}
 	}
@@ -109,7 +105,7 @@ func (s *Supervisor) getResponses() {
 			return
 		case r := <-results:
 			if err := s.route(r); err != nil {
-				s.logf("route: %v", err)
+				logf("route: %v", err)
 			}
 		case <-time.After(s.Timeout):
 			s.status = []Status{}
@@ -129,18 +125,18 @@ func (s *Supervisor) route(r rpcmq.Result) error {
 	cmd, data := Command(r.Data[0]), r.Data[1:]
 	switch cmd {
 	case GetStatus:
-		s.logf("GetStatus response")
+		logf("GetStatus response")
 		err = s.handleGetStatus(data)
 	case SoftShutdown:
-		s.logf("SoftShutdown response")
+		logf("SoftShutdown response")
 	case HardShutdown:
-		s.logf("HardShutdown response")
+		logf("HardShutdown response")
 	case Pause:
-		s.logf("Pause response")
+		logf("Pause response")
 	case Resume:
-		s.logf("Resume response")
+		logf("Resume response")
 	case KillTask:
-		s.logf("KillTask response")
+		logf("KillTask response")
 	default:
 		err = errors.New("malformed response")
 	}
@@ -153,14 +149,14 @@ func (s *Supervisor) handleGetStatus(data []byte) error {
 		return err
 	}
 	status.LastBeat = time.Now()
-	live := []Status{status}
+	alive := []Status{status}
 	for _, st := range s.status {
 		if st.Name == status.Name || time.Since(st.LastBeat) > s.Timeout {
 			continue
 		}
-		live = append(live, st)
+		alive = append(alive, st)
 	}
-	s.status = live
+	s.status = alive
 	return nil
 }
 
@@ -187,11 +183,4 @@ func (s *Supervisor) Invoke(cmd Command, target string) error {
 		return err
 	}
 	return nil
-}
-
-func (s *Supervisor) logf(format string, args ...interface{}) {
-	if s.Log == nil {
-		return
-	}
-	s.Log.Printf(format, args...)
 }

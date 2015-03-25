@@ -124,10 +124,11 @@ func layout(g *gocui.Gui) error {
 		}
 		fmt.Fprintf(v, "General information")
 	}
-	if _, err := g.SetView("main", 30, 1, maxX, maxY); err != nil {
+	if v, err := g.SetView("main", 30, 1, maxX, maxY); err != nil {
 		if err != gocui.ErrorUnkView {
 			return err
 		}
+		v.Wrap = true
 	}
 	return updateData(g)
 }
@@ -203,8 +204,15 @@ func updateData(g *gocui.Gui) error {
 	}
 
 	if agent, ok := status[selAgent]; ok {
+		freeRam := float32(agent.Info.FreeRam) / float32(agent.Info.TotalRam) * float32(100)
+		freeSwap := float32(agent.Info.FreeSwap) / float32(agent.Info.TotalSwap) * float32(100)
+
 		fmt.Fprintf(vmain, "Agent name: %v\n", agent.Name)
 		fmt.Fprintf(vmain, "Running: %v\n", agent.Running)
+		fmt.Fprintf(vmain, "Version: %s\n", agent.Info.Version)
+		fmt.Fprintf(vmain, "FreeRam: %f%%, FreeSwap: %f%%\n", freeRam, freeSwap)
+		fmt.Fprintf(vmain, "CPU usage: %f%%\n", agent.Info.CPU)
+		fmt.Fprintf(vmain, "Uptime: %s\n", agent.Info.Uptime)
 		fmt.Fprintf(vmain, "Last heartbeat: %v\n", time.Since(agent.LastBeat))
 		fmt.Fprintf(vmain, "Current tasks:\n")
 		for i, t := range agent.Tasks {

@@ -137,6 +137,11 @@ func (a *Agent) invoke(id string, data []byte) ([]byte, error) {
 }
 
 func (a *Agent) getStatus(data []byte) ([]byte, error) {
+	info, err := getSystemInfo()
+	if err != nil {
+		return nil, err
+	}
+	a.status.Info = info
 	return json.Marshal(a.status)
 }
 
