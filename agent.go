@@ -55,6 +55,7 @@ type Agent struct {
 func NewAgent(uri, exchange, name string) *Agent {
 	a := &Agent{}
 	a.s = rpcmq.NewServer(uri, "", exchange, "fanout")
+	a.s.Parallel = 1
 	a.status.Name = name
 	return a
 }

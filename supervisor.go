@@ -40,7 +40,7 @@ type Supervisor struct {
 	TLSConfig *tls.Config
 
 	// Timeout allows to configure the amount of time that must pass before
-	// considering an agent as offline.
+	// considering an agent as offline. Default: 5s.
 	Timeout time.Duration
 
 	// Beat allows to establish the time between heartbeats. Default: 500ms
