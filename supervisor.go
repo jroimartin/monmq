@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/jroimartin/rpcmq"
@@ -26,14 +27,17 @@ const (
 	Pause
 	Resume
 	KillTask
+	CustomCmd
 )
 
 // A Supervisor is responsible for requesting information from the deployed
 // agents and sending control commands to these agents.
 type Supervisor struct {
-	c      *rpcmq.Client
+	c    *rpcmq.Client
+	done chan bool
+
+	mu     sync.RWMutex
 	status []Status
-	done   chan bool
 
 	// TLSConfig allows to configure the TLS parameters used to connect to
 	// the broker via amqps.
@@ -45,6 +49,10 @@ type Supervisor struct {
 
 	// Beat allows to establish the time between heartbeats. Default: 500ms
 	Beat time.Duration
+
+	// CustomResults allows the supervisor to get the results returned by
+	// agents when CustomCmd is invoked.
+	CustomResults chan []byte
 }
 
 // Status represents the the information obtained from agents.
@@ -108,7 +116,9 @@ func (s *Supervisor) getResponses() {
 				logf("route: %v", err)
 			}
 		case <-time.After(s.Timeout):
+			s.mu.Lock()
 			s.status = []Status{}
+			s.mu.Unlock()
 		}
 	}
 }
@@ -137,6 +147,11 @@ func (s *Supervisor) route(r rpcmq.Result) error {
 		logf("Resume response")
 	case KillTask:
 		logf("KillTask response")
+	case CustomCmd:
+		logf("CustomCmd response")
+		go func() {
+			s.CustomResults <- data
+		}()
 	default:
 		err = errors.New("malformed response")
 	}
@@ -144,6 +159,9 @@ func (s *Supervisor) route(r rpcmq.Result) error {
 }
 
 func (s *Supervisor) handleGetStatus(data []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	status := Status{}
 	if err := json.Unmarshal(data, &status); err != nil {
 		return err
@@ -171,6 +189,9 @@ func (s *Supervisor) Shutdown() {
 
 // Status returns the status of all the online agents.
 func (s *Supervisor) Status() []Status {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	return s.status
 }
 

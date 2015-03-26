@@ -44,6 +44,10 @@ type Agent struct {
 	// Resume.
 	ResumeFunc CommandFunction
 
+	// CustomFunc will be called when a supervisor invokes the command
+	// CustomCmd.
+	CustomFunc CommandFunction
+
 	// KillTaskFunc will be called when a supervisor invokes the command
 	// KillTask.
 	KillTaskFunc CommandFunction
@@ -121,6 +125,8 @@ func (a *Agent) invoke(id string, data []byte) ([]byte, error) {
 	case a.status.Name == string(aux) && cmd == Resume:
 		f = a.ResumeFunc
 		running = true
+	case a.status.Name == string(aux) && cmd == CustomCmd:
+		f = a.CustomFunc
 	case a.ownsTask(string(aux)) && cmd == KillTask:
 		f = a.KillTaskFunc
 	}
