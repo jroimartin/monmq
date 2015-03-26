@@ -65,8 +65,8 @@ func NewSupervisor(uri, repliesQueue, exchange string) *Supervisor {
 		status:  []Status{},
 		c:       rpcmq.NewClient(uri, "", repliesQueue, exchange, "fanout"),
 		done:    make(chan bool),
-		Timeout: 5 * time.Second,
-		Beat:    500 * time.Millisecond,
+		Timeout: 30 * time.Second,
+		Beat:    5 * time.Second,
 	}
 	return s
 }

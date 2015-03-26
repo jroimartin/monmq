@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const readPeriod = 100 * time.Millisecond
+const readPeriod = 1 * time.Second
 
 func readVersion() (string, error) {
 	b, err := ioutil.ReadFile("/proc/version")
@@ -261,7 +261,13 @@ func getSystemInfo() (SystemInfo, error) {
 		}
 	}
 	si.CPU = ((totaltime[1] - totaltime[0]) - (idlealltime[1] - idlealltime[0])) / (totaltime[1] - totaltime[0])
+	if si.CPU < 0 {
+		si.CPU = 0
+	}
 	si.Proc.CPU = (proctime[1] - proctime[0]) / (totaltime[1] - totaltime[0])
+	if si.Proc.CPU < 0 {
+		si.Proc.CPU = 0
+	}
 	si.Proc.TotalRam = int(ps.rss) * os.Getpagesize()
 
 	ut, err := readUptime()
