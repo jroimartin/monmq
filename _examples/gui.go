@@ -209,17 +209,24 @@ func updateData(g *gocui.Gui) error {
 	if agent, ok := status[selAgent]; ok {
 		freeRam := float32(agent.Info.FreeRam) / float32(agent.Info.TotalRam) * float32(100)
 		freeSwap := float32(agent.Info.FreeSwap) / float32(agent.Info.TotalSwap) * float32(100)
+		cpu := agent.Info.CPU * float32(100)
+		procCPU := agent.Info.Proc.CPU * float32(100)
+		procRam := float32(agent.Info.Proc.TotalRam) / float32(agent.Info.TotalRam) * float32(100)
 
 		fmt.Fprintf(vmain, "Agent name: %v\n", agent.Name)
 		fmt.Fprintf(vmain, "Running: %v\n", agent.Running)
 		fmt.Fprintf(vmain, "Version: %s\n", agent.Info.Version)
-		fmt.Fprintf(vmain, "FreeRam: %f%%, FreeSwap: %f%%\n", freeRam, freeSwap)
-		fmt.Fprintf(vmain, "CPU usage: %f%%\n", agent.Info.CPU)
+		fmt.Fprintf(vmain, "Free RAM: %f%%, Free Swap: %f%%\n", freeRam, freeSwap)
+		fmt.Fprintf(vmain, "CPU usage: %f%%\n", cpu)
+		fmt.Fprintf(vmain, "Process:\n")
+		fmt.Fprintf(vmain, "  PID: %d\n", agent.Info.Proc.Pid)
+		fmt.Fprintf(vmain, "  RAM usage: %f%%\n", procRam)
+		fmt.Fprintf(vmain, "  CPU usage: %f%%\n", procCPU)
 		fmt.Fprintf(vmain, "Uptime: %s\n", agent.Info.Uptime)
 		fmt.Fprintf(vmain, "Last heartbeat: %v\n", time.Since(agent.LastBeat))
 		fmt.Fprintf(vmain, "Current tasks:\n")
 		for i, t := range agent.Tasks {
-			fmt.Fprintf(vmain, "%v. %v\n", i, t)
+			fmt.Fprintf(vmain, "  %v. %v\n", i, t)
 		}
 	}
 

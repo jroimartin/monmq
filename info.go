@@ -14,4 +14,11 @@ type SystemInfo struct {
 	FreeSwap  int
 	CPU       float32
 	Uptime    time.Duration
+	Proc      ProcInfo
+}
+
+type ProcInfo struct {
+	Pid      int
+	TotalRam int
+	CPU      float32
 }

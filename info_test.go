@@ -16,4 +16,7 @@ func TestSystemInfo(t *testing.T) {
 		info.TotalRam, info.FreeRam, info.TotalSwap, info.FreeSwap)
 	t.Logf("CPU: %f, Uptime: %s",
 		info.CPU, info.Uptime)
+	t.Logf("Proc.Pid: %d", info.Proc.Pid)
+	t.Logf("Proc.TotalRam: %d", info.Proc.TotalRam)
+	t.Logf("Proc.CPU: %f", info.Proc.CPU)
 }

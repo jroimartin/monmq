@@ -233,9 +233,13 @@ func getSystemInfo() (SystemInfo, error) {
 		return SystemInfo{}, errors.New("cannot get SwapFree")
 	}
 
-	var totaltime, idlealltime [2]float32
+	var (
+		cs                               cpustat
+		ps                               procstat
+		totaltime, idlealltime, proctime [2]float32
+	)
 	for i := 0; i < 2; i++ {
-		cs, err := readCPUstat()
+		cs, err = readCPUstat()
 		if err != nil {
 			return SystemInfo{}, err
 		}
@@ -247,11 +251,18 @@ func getSystemInfo() (SystemInfo, error) {
 		virtalltime := float32(cs.guest + cs.guest_nice)
 		totaltime[i] = usertime + nicetime + systemalltime + idlealltime[i] + float32(cs.steal) + virtalltime
 
+		ps, err = readProcstat(os.Getpid())
+		if err != nil {
+			return SystemInfo{}, err
+		}
+		proctime[i] = float32(ps.utime + ps.stime + uint32(ps.cutime) + uint32(ps.cstime))
 		if i == 0 {
 			time.Sleep(readPeriod)
 		}
 	}
 	si.CPU = ((totaltime[1] - totaltime[0]) - (idlealltime[1] - idlealltime[0])) / (totaltime[1] - totaltime[0])
+	si.Proc.CPU = (proctime[1] - proctime[0]) / (totaltime[1] - totaltime[0])
+	si.Proc.TotalRam = int(ps.rss) * os.Getpagesize()
 
 	ut, err := readUptime()
 	if err != nil {
@@ -262,6 +273,8 @@ func getSystemInfo() (SystemInfo, error) {
 		return SystemInfo{}, err
 	}
 	si.Uptime = uptime
+
+	si.Proc.Pid = os.Getpid()
 
 	return si, nil
 }
