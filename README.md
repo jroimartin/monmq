@@ -75,7 +75,7 @@ func rpcMethod(id string, data []byte) ([]byte, error) {
 
 ## Screenshots
 
-![screen shot 2015-03-11 at 19 47 29](https://cloud.githubusercontent.com/assets/1223476/6604363/1ba26894-c828-11e4-80ba-e8fa81a06151.png)
+![screen shot](https://cloud.githubusercontent.com/assets/1223476/6926071/3569d930-d7e4-11e4-8652-8e3ac1e0da1a.png)
 
 ## Installation
 
