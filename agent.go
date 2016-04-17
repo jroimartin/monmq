@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/jroimartin/rpcmq"
 )
@@ -23,6 +24,8 @@ type CommandFunction func(data []byte) ([]byte, error)
 type Agent struct {
 	s      *rpcmq.Server
 	status Status
+
+	mu sync.Mutex
 
 	// TLSConfig allows to configure the TLS parameters used to connect to
 	// the broker via amqps.
@@ -87,11 +90,17 @@ func (a *Agent) Shutdown() {
 
 // RegisterTask adds a task to the list of tasks handled by the agent.
 func (a *Agent) RegisterTask(id string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	a.status.Tasks = append(a.status.Tasks, id)
 }
 
 // RemoveTask removes a task from the list of tasks handled by the agent.
 func (a *Agent) RemoveTask(id string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	idx := -1
 	for i, t := range a.status.Tasks {
 		if t == id {
@@ -107,6 +116,9 @@ func (a *Agent) RemoveTask(id string) error {
 }
 
 func (a *Agent) invoke(id string, data []byte) ([]byte, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	var f CommandFunction
 	running := a.status.Running
 	cmd, aux := Command(data[0]), data[1:]
