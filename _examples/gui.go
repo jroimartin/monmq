@@ -2,13 +2,14 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build ignore
+
 package main
 
 import (
 	"fmt"
 	"log"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/jroimartin/gocui"
@@ -17,58 +18,65 @@ import (
 
 const refreshTime = 1 * time.Second
 
-var (
-	supervisor *monmq.Supervisor
-	mu         sync.Mutex
-)
+var supervisor *monmq.Supervisor
 
-func cursorDown(g *gocui.Gui, v *gocui.View) error {
-	if v != nil {
-		cx, cy := v.Cursor()
-		if err := v.SetCursor(cx, cy+1); err != nil {
-			ox, oy := v.Origin()
-			if err := v.SetOrigin(ox, oy+1); err != nil {
-				return err
-			}
+func main() {
+	var err error
+
+	g := gocui.NewGui()
+	if err = g.Init(); err != nil {
+		log.Fatalln(err)
+	}
+	defer g.Close()
+
+	g.SetLayout(layout)
+	if err = keybindings(g); err != nil {
+		log.Fatalln(err)
+	}
+	g.SelBgColor = gocui.ColorGreen
+	g.SelFgColor = gocui.ColorBlack
+	g.Cursor = true
+
+	supervisor = monmq.NewSupervisor("amqp://amqp_broker:5672",
+		"mon-replies", "mon-exchange")
+	if err = supervisor.Init(); err != nil {
+		log.Fatalf("Init: %v", err)
+	}
+	defer supervisor.Shutdown()
+
+	go func() {
+		for {
+			g.Execute(updateData)
+			time.Sleep(refreshTime)
 		}
+	}()
+
+	err = g.MainLoop()
+	if err != nil && err != gocui.ErrQuit {
+		log.Fatalln(err)
 	}
-	return nil
 }
 
-func cursorUp(g *gocui.Gui, v *gocui.View) error {
-	if v != nil {
-		ox, oy := v.Origin()
-		cx, cy := v.Cursor()
-		if err := v.SetCursor(cx, cy-1); err != nil && oy > 0 {
-			if err := v.SetOrigin(ox, oy-1); err != nil {
-				return err
-			}
+func layout(g *gocui.Gui) error {
+	maxX, maxY := g.Size()
+	if v, err := g.SetView("side", 0, 0, 30, maxY-1); err != nil {
+		if err != gocui.ErrUnknownView {
+			return err
 		}
+		if err := g.SetCurrentView("side"); err != nil {
+			return err
+		}
+		v.Title = "On-line agents"
+		v.Highlight = true
+	}
+	if v, err := g.SetView("main", 30, 0, maxX-1, maxY-1); err != nil {
+		if err != gocui.ErrUnknownView {
+			return err
+		}
+		v.Title = "General information"
+		v.Wrap = true
 	}
 	return nil
-}
-
-func invoke(g *gocui.Gui, v *gocui.View, cmd monmq.Command) error {
-	mu.Lock()
-	defer mu.Unlock()
-
-	vside, err := g.View("side")
-	if err != nil {
-		return err
-	}
-	_, cy := vside.Cursor()
-	selAgent, err := vside.Line(cy)
-	if err != nil {
-		selAgent = ""
-	}
-	if selAgent != "" {
-		return supervisor.Invoke(cmd, selAgent)
-	}
-	return nil
-}
-
-func quit(g *gocui.Gui, v *gocui.View) error {
-	return gocui.Quit
 }
 
 func keybindings(g *gocui.Gui) error {
@@ -98,85 +106,57 @@ func keybindings(g *gocui.Gui) error {
 	}); err != nil {
 		return err
 	}
-	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
+	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+		return gocui.ErrQuit
+	}); err != nil {
 		return err
 	}
 	return nil
 }
 
-func layout(g *gocui.Gui) error {
-	maxX, maxY := g.Size()
-	if v, err := g.SetView("sideTitle", -1, -1, 30, 1); err != nil {
-		if err != gocui.ErrorUnkView {
-			return err
+func cursorDown(g *gocui.Gui, v *gocui.View) error {
+	if v != nil {
+		cx, cy := v.Cursor()
+		if err := v.SetCursor(cx, cy+1); err != nil {
+			ox, oy := v.Origin()
+			if err := v.SetOrigin(ox, oy+1); err != nil {
+				return err
+			}
 		}
-		fmt.Fprintf(v, "On-line agents")
 	}
-	if v, err := g.SetView("side", -1, 1, 30, maxY); err != nil {
-		if err != gocui.ErrorUnkView {
-			return err
-		}
-		if err := g.SetCurrentView("side"); err != nil {
-			return err
-		}
-		v.Highlight = true
-	}
-	if v, err := g.SetView("mainTitle", 30, -1, maxX, 1); err != nil {
-		if err != gocui.ErrorUnkView {
-			return err
-		}
-		fmt.Fprintf(v, "General information")
-	}
-	if v, err := g.SetView("main", 30, 1, maxX, maxY); err != nil {
-		if err != gocui.ErrorUnkView {
-			return err
-		}
-		v.Wrap = true
-	}
-	return updateData(g)
+	return nil
 }
 
-func main() {
-	var err error
-
-	g := gocui.NewGui()
-	if err := g.Init(); err != nil {
-		log.Fatalln(err)
-	}
-	defer g.Close()
-
-	g.SetLayout(layout)
-	if err := keybindings(g); err != nil {
-		log.Fatalln(err)
-	}
-	g.SelBgColor = gocui.ColorGreen
-	g.SelFgColor = gocui.ColorBlack
-	g.ShowCursor = true
-
-	supervisor = monmq.NewSupervisor("amqp://amqp_broker:5672",
-		"mon-replies", "mon-exchange")
-	if err := supervisor.Init(); err != nil {
-		log.Fatalf("Init: %v", err)
-	}
-	defer supervisor.Shutdown()
-
-	go func() {
-		for {
-			g.Flush()
-			time.Sleep(refreshTime)
+func cursorUp(g *gocui.Gui, v *gocui.View) error {
+	if v != nil {
+		ox, oy := v.Origin()
+		cx, cy := v.Cursor()
+		if err := v.SetCursor(cx, cy-1); err != nil && oy > 0 {
+			if err := v.SetOrigin(ox, oy-1); err != nil {
+				return err
+			}
 		}
-	}()
-
-	err = g.MainLoop()
-	if err != nil && err != gocui.Quit {
-		log.Fatalln(err)
 	}
+	return nil
+}
+
+func invoke(g *gocui.Gui, v *gocui.View, cmd monmq.Command) error {
+	vside, err := g.View("side")
+	if err != nil {
+		return err
+	}
+	_, cy := vside.Cursor()
+	selAgent, err := vside.Line(cy)
+	if err != nil {
+		selAgent = ""
+	}
+	if selAgent != "" {
+		return supervisor.Invoke(cmd, selAgent)
+	}
+	return nil
 }
 
 func updateData(g *gocui.Gui) error {
-	mu.Lock()
-	defer mu.Unlock()
-
 	vside, err := g.View("side")
 	if err != nil {
 		return err
@@ -207,7 +187,7 @@ func updateData(g *gocui.Gui) error {
 	}
 
 	if agent, ok := status[selAgent]; ok {
-		freeRam := float32(agent.Info.FreeRam) / float32(agent.Info.TotalRam) * float32(100)
+		freeRAM := float32(agent.Info.FreeRam) / float32(agent.Info.TotalRam) * float32(100)
 		freeSwap := float32(agent.Info.FreeSwap) / float32(agent.Info.TotalSwap) * float32(100)
 		cpu := agent.Info.CPU * float32(100)
 		procCPU := agent.Info.Proc.CPU * float32(100)
@@ -216,7 +196,7 @@ func updateData(g *gocui.Gui) error {
 		fmt.Fprintf(vmain, "Agent name: %v\n", agent.Name)
 		fmt.Fprintf(vmain, "Running: %v\n", agent.Running)
 		fmt.Fprintf(vmain, "Version: %s\n", agent.Info.Version)
-		fmt.Fprintf(vmain, "Free RAM: %f%%, Free Swap: %f%%\n", freeRam, freeSwap)
+		fmt.Fprintf(vmain, "Free RAM: %f%%, Free Swap: %f%%\n", freeRAM, freeSwap)
 		fmt.Fprintf(vmain, "CPU usage: %f%%\n", cpu)
 		fmt.Fprintf(vmain, "Process:\n")
 		fmt.Fprintf(vmain, "  PID: %d\n", agent.Info.Proc.Pid)
