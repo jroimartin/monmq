@@ -29,7 +29,7 @@ func readVersion() (string, error) {
 	return version, nil
 }
 
-type meminfo map[string]uint32
+type meminfo map[string]uint64
 
 func readMeminfo() (meminfo, error) {
 	f, err := os.Open("/proc/meminfo")
@@ -46,11 +46,11 @@ func readMeminfo() (meminfo, error) {
 			return nil, errors.New("malformed file")
 		}
 		name := fields[0][:len(fields[0])-1]
-		value, err := strconv.ParseUint(fields[1], 10, 32)
+		value, err := strconv.ParseUint(fields[1], 10, 64)
 		if err != nil {
 			return nil, err
 		}
-		info[name] = uint32(value)
+		info[name] = value
 	}
 	if err := s.Err(); err != nil {
 		return nil, err
@@ -59,16 +59,16 @@ func readMeminfo() (meminfo, error) {
 }
 
 type cpustat struct {
-	user       uint32
-	nice       uint32
-	system     uint32
-	idle       uint32
-	iowait     uint32
-	irq        uint32
-	softirq    uint32
-	steal      uint32
-	guest      uint32
-	guest_nice uint32
+	user       uint64
+	nice       uint64
+	system     uint64
+	idle       uint64
+	iowait     uint64
+	irq        uint64
+	softirq    uint64
+	steal      uint64
+	guest      uint64
+	guest_nice uint64
 }
 
 func readCPUstat() (cpustat, error) {
@@ -110,48 +110,48 @@ type procstat struct {
 	tty_nr                int
 	tpgid                 int
 	flags                 uint64
-	minflt                uint32
-	cminflt               uint32
-	majflt                uint32
-	cmajflt               uint32
-	utime                 uint32
-	stime                 uint32
-	cutime                int32
-	cstime                int32
-	priority              int32
-	nice                  int32
-	num_threads           int32
-	itrealvalue           int32
+	minflt                uint64
+	cminflt               uint64
+	majflt                uint64
+	cmajflt               uint64
+	utime                 uint64
+	stime                 uint64
+	cutime                int64
+	cstime                int64
+	priority              int64
+	nice                  int64
+	num_threads           int64
+	itrealvalue           int64
 	starttime             uint64
-	vsize                 uint32
-	rss                   int32
-	rsslim                uint32
-	startcode             uint32
-	endcode               uint32
-	startstack            uint32
-	kstkesp               uint32
-	kstkeip               uint32
-	signal                uint32
-	blocked               uint32
-	sigignore             uint32
-	sigcatch              uint32
-	wchan                 uint32
-	nswap                 uint32
-	cnswap                uint32
+	vsize                 uint64
+	rss                   int64
+	rsslim                uint64
+	startcode             uint64
+	endcode               uint64
+	startstack            uint64
+	kstkesp               uint64
+	kstkeip               uint64
+	signal                uint64
+	blocked               uint64
+	sigignore             uint64
+	sigcatch              uint64
+	wchan                 uint64
+	nswap                 uint64
+	cnswap                uint64
 	exit_signal           int
 	processor             int
 	rt_priority           uint64
 	policy                uint64
 	delayacct_blkio_ticks uint64
-	guest_time            uint32
-	cguest_time           int32
-	start_data            uint32
-	end_data              uint32
-	start_brk             uint32
-	arg_start             uint32
-	arg_end               uint32
-	env_start             uint32
-	env_end               uint32
+	guest_time            uint64
+	cguest_time           int64
+	start_data            uint64
+	end_data              uint64
+	start_brk             uint64
+	arg_start             uint64
+	arg_end               uint64
+	env_start             uint64
+	env_end               uint64
 	exit_code             int
 }
 
@@ -187,12 +187,12 @@ func readProcstat(pid int) (procstat, error) {
 	return stat, nil
 }
 
-func readUptime() (int, error) {
+func readUptime() (uint64, error) {
 	b, err := ioutil.ReadFile("/proc/uptime")
 	if err != nil {
 		return 0, err
 	}
-	var uptime int
+	var uptime uint64
 	if _, err = fmt.Sscanf(string(b), "%d", &uptime); err != nil {
 		return 0, err
 	}
@@ -213,22 +213,22 @@ func getSystemInfo() (SystemInfo, error) {
 		return SystemInfo{}, err
 	}
 	if v, ok := mi["MemTotal"]; ok {
-		si.TotalRam = int(v * 1024)
+		si.TotalRam = v * 1024
 	} else {
 		return SystemInfo{}, errors.New("cannot get MemTotal")
 	}
 	if v, ok := mi["MemFree"]; ok {
-		si.FreeRam = int(v * 1024)
+		si.FreeRam = v * 1024
 	} else {
 		return SystemInfo{}, errors.New("cannot get MemFree")
 	}
 	if v, ok := mi["SwapTotal"]; ok {
-		si.TotalSwap = int(v * 1024)
+		si.TotalSwap = v * 1024
 	} else {
 		return SystemInfo{}, errors.New("cannot get SwapTotal")
 	}
 	if v, ok := mi["SwapFree"]; ok {
-		si.FreeSwap = int(v * 1024)
+		si.FreeSwap = v * 1024
 	} else {
 		return SystemInfo{}, errors.New("cannot get SwapFree")
 	}
@@ -236,7 +236,7 @@ func getSystemInfo() (SystemInfo, error) {
 	var (
 		cs                               cpustat
 		ps                               procstat
-		totaltime, idlealltime, proctime [2]float32
+		totaltime, idlealltime, proctime [2]float64
 	)
 	for i := 0; i < 2; i++ {
 		cs, err = readCPUstat()
@@ -244,18 +244,18 @@ func getSystemInfo() (SystemInfo, error) {
 			return SystemInfo{}, err
 		}
 		// Guest time is already accounted in usertime
-		usertime := float32(cs.user - cs.guest)
-		nicetime := float32(cs.nice - cs.guest_nice)
-		idlealltime[i] = float32(cs.idle + cs.iowait)
-		systemalltime := float32(cs.system + cs.irq + cs.softirq)
-		virtalltime := float32(cs.guest + cs.guest_nice)
-		totaltime[i] = usertime + nicetime + systemalltime + idlealltime[i] + float32(cs.steal) + virtalltime
+		usertime := float64(cs.user - cs.guest)
+		nicetime := float64(cs.nice - cs.guest_nice)
+		idlealltime[i] = float64(cs.idle + cs.iowait)
+		systemalltime := float64(cs.system + cs.irq + cs.softirq)
+		virtalltime := float64(cs.guest + cs.guest_nice)
+		totaltime[i] = usertime + nicetime + systemalltime + idlealltime[i] + float64(cs.steal) + virtalltime
 
 		ps, err = readProcstat(os.Getpid())
 		if err != nil {
 			return SystemInfo{}, err
 		}
-		proctime[i] = float32(ps.utime + ps.stime + uint32(ps.cutime) + uint32(ps.cstime))
+		proctime[i] = float64(ps.utime + ps.stime + uint64(ps.cutime) + uint64(ps.cstime))
 		if i == 0 {
 			time.Sleep(readPeriod)
 		}
@@ -268,13 +268,13 @@ func getSystemInfo() (SystemInfo, error) {
 	if si.Proc.CPU < 0 {
 		si.Proc.CPU = 0
 	}
-	si.Proc.TotalRam = int(ps.rss) * os.Getpagesize()
+	si.Proc.TotalRam = uint64(ps.rss) * uint64(os.Getpagesize())
 
 	ut, err := readUptime()
 	if err != nil {
 		return SystemInfo{}, err
 	}
-	uptime, err := time.ParseDuration(strconv.Itoa(ut) + "s")
+	uptime, err := time.ParseDuration(strconv.FormatUint(ut, 10) + "s")
 	if err != nil {
 		return SystemInfo{}, err
 	}

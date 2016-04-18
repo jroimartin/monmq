@@ -8,17 +8,17 @@ import "time"
 
 type SystemInfo struct {
 	Version   string
-	TotalRam  int
-	FreeRam   int
-	TotalSwap int
-	FreeSwap  int
-	CPU       float32
+	TotalRam  uint64
+	FreeRam   uint64
+	TotalSwap uint64
+	FreeSwap  uint64
+	CPU       float64
 	Uptime    time.Duration
 	Proc      ProcInfo
 }
 
 type ProcInfo struct {
 	Pid      int
-	TotalRam int
-	CPU      float32
+	TotalRam uint64
+	CPU      float64
 }
