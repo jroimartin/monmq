@@ -116,9 +116,6 @@ func (a *Agent) RemoveTask(id string) error {
 }
 
 func (a *Agent) invoke(id string, data []byte) ([]byte, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	var f CommandFunction
 	running := a.status.Running
 	cmd, aux := Command(data[0]), data[1:]
