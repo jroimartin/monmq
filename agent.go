@@ -25,7 +25,7 @@ type Agent struct {
 	s      *rpcmq.Server
 	status Status
 
-	mu sync.Mutex
+	mu sync.RWMutex
 
 	// TLSConfig allows to configure the TLS parameters used to connect to
 	// the broker via amqps.
@@ -116,25 +116,29 @@ func (a *Agent) RemoveTask(id string) error {
 }
 
 func (a *Agent) invoke(id string, data []byte) ([]byte, error) {
-	var f CommandFunction
+	a.mu.RLock()
+	name := a.status.Name
 	running := a.status.Running
+	a.mu.RUnlock()
+
+	var f CommandFunction
 	cmd, aux := Command(data[0]), data[1:]
 	switch {
 	case cmd == GetStatus:
 		f = a.getStatus
-	case a.status.Name == string(aux) && cmd == SoftShutdown:
+	case name == string(aux) && cmd == SoftShutdown:
 		f = a.SoftShutdownFunc
 		running = false
-	case a.status.Name == string(aux) && cmd == HardShutdown:
+	case name == string(aux) && cmd == HardShutdown:
 		f = a.HardShutdownFunc
 		running = false
-	case a.status.Name == string(aux) && cmd == Pause:
+	case name == string(aux) && cmd == Pause:
 		f = a.PauseFunc
 		running = false
-	case a.status.Name == string(aux) && cmd == Resume:
+	case name == string(aux) && cmd == Resume:
 		f = a.ResumeFunc
 		running = true
-	case a.status.Name == string(aux) && cmd == CustomCmd:
+	case name == string(aux) && cmd == CustomCmd:
 		f = a.CustomFunc
 	case a.ownsTask(string(aux)) && cmd == KillTask:
 		f = a.KillTaskFunc
@@ -147,12 +151,19 @@ func (a *Agent) invoke(id string, data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	a.mu.Lock()
 	a.status.Running = running
+	a.mu.Unlock()
+
 	out := fmt.Sprintf("%c%s", cmd, b)
 	return []byte(out), nil
 }
 
 func (a *Agent) getStatus(data []byte) ([]byte, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	info, err := getSystemInfo()
 	if err != nil {
 		return nil, err
@@ -162,6 +173,9 @@ func (a *Agent) getStatus(data []byte) ([]byte, error) {
 }
 
 func (a *Agent) ownsTask(id string) bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
 	for _, t := range a.status.Tasks {
 		if id == t {
 			return true
