@@ -187,11 +187,11 @@ func updateData(g *gocui.Gui) error {
 	}
 
 	if agent, ok := status[selAgent]; ok {
-		freeRAM := float32(agent.Info.FreeRam) / float32(agent.Info.TotalRam) * float32(100)
-		freeSwap := float32(agent.Info.FreeSwap) / float32(agent.Info.TotalSwap) * float32(100)
-		cpu := agent.Info.CPU * float32(100)
-		procCPU := agent.Info.Proc.CPU * float32(100)
-		procRam := float32(agent.Info.Proc.TotalRam) / float32(agent.Info.TotalRam) * float32(100)
+		freeRAM := float64(agent.Info.FreeRam) / float64(agent.Info.TotalRam) * float64(100)
+		freeSwap := float64(agent.Info.FreeSwap) / float64(agent.Info.TotalSwap) * float64(100)
+		cpu := agent.Info.CPU * float64(100)
+		procCPU := agent.Info.Proc.CPU * float64(100)
+		procRam := float64(agent.Info.Proc.TotalRam) / float64(agent.Info.TotalRam) * float64(100)
 
 		fmt.Fprintf(vmain, "Agent name: %v\n", agent.Name)
 		fmt.Fprintf(vmain, "Running: %v\n", agent.Running)
